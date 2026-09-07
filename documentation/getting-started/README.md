@@ -16,7 +16,7 @@ Install Articulate, configure database access, and wire the two services used by
 Add the package via Composer:
 
 ```bash
-composer require denisyu-1/articulate
+composer require articulate-orm/core
 ```
 
 The demo repository already has this dependency in `composer.json`.
