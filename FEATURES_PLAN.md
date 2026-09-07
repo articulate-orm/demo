@@ -247,6 +247,49 @@ Each feature lives in `src/Features/<Name>/` and owns its entities, commands, an
 
 ---
 
+## Feature: OptimisticLocking
+
+**Status:** Planned. Requires the optimistic-locking library release (merged to `articulate` `main`, not in `1.1.0`; build once the tagged release — expected `1.2.0` — is on Packagist and the demo's `composer.json` constraint is bumped).
+
+**Why a dedicated feature:** Optimistic locking is the clearest expression of Articulate's differentiator. A naive version-per-entity-class lock *breaks* under context-bounded entities: if only one sibling class bumps/checks the version column, another sibling silently overwrites changes undetected. Articulate makes it explicit and per-class, so this feature exists to show the safe cross-class contract — not just a single-class version counter.
+
+**Domain:** Billing — an invoice row written through two bounded-context classes: a full checking class and a narrow bump-only edit path.
+
+**Schema:** new migration `Migration20260616000600OptimisticLocking` adds an `invoices` table with an `int version NOT NULL DEFAULT 0` column (library auto-generates `DEFAULT 0` for a `#[Version]` column via `articulate:diff`; the checked-in migration mirrors that).
+
+**Entities:**
+- `Invoice` — `#[Entity(tableName: 'invoices')]`; full write model. Carries `#[Property] #[Version] public int $version = 0;` — the canonical version column, hydrated as a normal int, bumped (`version = version + 1`) **and** checked (`WHERE version = ?`) on every UPDATE through this class.
+- `InvoiceTitleEdit` — **second class mapping `invoices`**; narrow title/notes-only edit path. Class-level `#[VersionAware(['version'])]` — bumps the shared `version` column on UPDATE but never checks it, because a lightweight title edit shouldn't take on lost-update detection it can't reason about.
+
+**Commands:**
+- `app:billing:optimistic-lock` — the happy path and the conflict:
+  1. Persist an `Invoice`; show `version = 0` after insert.
+  2. Update a field, flush; show the UPDATE carried `WHERE version = 0`, the row is now `version = 1`, and the in-memory property reflects the bump.
+  3. Simulate a concurrent writer: load the invoice in a second `EntityManager`, mutate + flush (row goes to `version = 2`). Back in the first context, mutate the stale `version = 1` object and flush → catch `OptimisticLockException` (`WHERE version = 1 matched 0 rows`).
+  4. **Recover:** show the failed flush did NOT poison state — the transaction rolled back and the in-memory `version` is back at its pre-flush value; re-`find()` the invoice and flush again successfully. No "EM is closed" state to reset.
+  5. Show the `#[VersionAware]` sibling: edit the title through `InvoiceTitleEdit`, flush; the shared `version` still bumps (so a concurrent full-model writer's check will fire) even though the title path never checked it itself.
+
+**Library features demonstrated:**
+- `#[Version]` — checked-and-bumped canonical version column
+- `#[VersionAware([...])]` — bump-only sibling on a versioned table (the bounded-context safety contract)
+- `OptimisticLockException` — stale-version conflict as zero-rows-matched
+- Conflict recovery without a poisoned unit of work / retry after re-`find()`
+- `articulate:validate` version-column coverage check (see below)
+
+**`articulate:validate` demonstration (CI-critical):**
+- Run `articulate:validate` with both `Invoice` and `InvoiceTitleEdit` correctly declared → passes.
+- Temporarily add a third class mapping `invoices` with neither `#[Version]` nor `#[VersionAware]` → `validate` errors: `Class "..." does not account for version column "version" on table "invoices"`. This is the point: there is **no runtime check**, so a class silently drops out of lost-update detection until `validate` catches it — hence run it in CI. (Show the error, then remove the offending class.)
+- Note the info-level report when a table has more than one distinct `#[Version]` column across its classes.
+
+**Edge cases:**
+- `OptimisticLockException` does not distinguish a stale version from a deleted row — both are "zero rows matched." Demonstrate by deleting the row out from under a managed object, then flushing an update → same exception.
+- `#[Version]` property must be typed `int`; declaring a column as both a class's own `#[Version]` and its own `#[VersionAware]` throws at metadata-build time — show the build-time failure.
+- **Do NOT** write the same row through two different `#[Version]`-checking classes in one flush — the first UPDATE bumps the shared column and the second conflicts with itself; call this out as an anti-pattern (contrast with the safe `#[VersionAware]` sibling).
+
+**Docs:** add `documentation/optimistic-locking/README.md` and wire it into `documentation/README.md` (index) and the `transactions-locking` page navigation — the existing transactions-locking doc covers only *pessimistic* (`FOR UPDATE`) locking, so optimistic locking needs its own page rather than being folded in.
+
+---
+
 ## Summary Table
 
 | Feature          | Entities                                                      | Key library features                                                          |
@@ -257,6 +300,7 @@ Each feature lives in `src/Features/<Name>/` and owns its entities, commands, an
 | Tagging          | Tag, TaggableOrder, TaggableCustomer                          | MorphToMany, MorphedByMany, MorphTypeRegistry                                 |
 | Analytics        | OrderSnapshot, OrderItemSnapshot, ProductSnapshot             | result cache, query logger, chunk, aggregates, hydrators, L2 scope            |
 | BulkImport       | ImportProduct, ImportCategory                                 | scoped unit of work, memory-bounded batching                                  |
+| OptimisticLocking | Invoice, InvoiceTitleEdit                                    | `#[Version]`, `#[VersionAware]`, OptimisticLockException, validate coverage    |
 
 ---
 
@@ -275,6 +319,25 @@ Each feature lives in `src/Features/<Name>/` and owns its entities, commands, an
 **Relation column contract:** README explicitly states that a relation-owned FK column must not also be mapped as a scalar `#[Property]` on the same entity. Example: an owning `#[ManyToOne(column: 'customer_id')] public ?Customer $customer` and `#[Property(name: 'customer_id')] public ?int $customerId` on the same class is invalid and should fail `articulate:validate`.
 
 **Post-library-fix cleanup:** The temporary duplicate mappings were removed from Orders after the library-side validation message was improved and covered by tests. README examples should continue to use relation properties or scalar FK properties exclusively, never both for the same column.
+
+---
+
+## Known-Limitations Recheck Pass
+
+After the optimistic-locking release lands in the demo dependency, re-verify every item in `documentation/known-limitations/README.md` against the merged library and prune what's fixed. The merge touched `ValidateCommand`, `MergeUpdateConflictResolutionStrategy`, `QueryExecutor`, `EntityMetadata`/`EntityMetadataRegistry`, `ChangeSetExecutor`, `DeferredImplicitStrategy`, and the hydrators, so prioritize rechecking limitations in those areas.
+
+**Recheck each — keep only if still reproducible against the released version:**
+
+- Mapping — snake_case explicit `#[Property(name:)]` fallback; projection identity-map isolation; projection PK-metadata requirement. (Recheck hydrator/metadata changes.)
+- Relations — lazy-proxy flush safety; `loadRelation()` returning `null` for `MorphToMany`/`MorphedByMany`; relation-owned FK not also mapped as scalar.
+- Query Builder — `where('col', null)` compiling as `= ?`; `QueryBuilder::chunk()` missing from the installed dependency; `whereRaw()` binding guidance.
+- Migrations — checked-in migrations; `articulate:diff` polymorphic-pivot gaps; `taggable_id VARCHAR(36)` + technical `id` column on the pivot.
+- Hydration — aggregate/specific-column selects forcing raw-array hydration; `ScalarHydrator` sending scalars to UoW registration (type error); `PartialHydrator` registering an empty-id entity. (Recheck — `QueryExecutor`/hydrator changes are the most likely to have moved.)
+- Caching — L2 `find()`-by-PK-only scope; sibling eviction vs in-memory identity map desync; result-cache staleness in TTL. (Recheck `MergeUpdateConflictResolutionStrategy` change for the sibling-write path.)
+
+**Additions once verified:**
+- Add an **Optimistic Locking** section to the limitations page for any residual gaps found while building the demo (e.g. `validate` has no runtime enforcement — a class silently drops out of lost-update detection until `validate` runs; `OptimisticLockException` can't distinguish stale-version from deleted-row).
+- Re-run the CustomerAccounts "Pending library recheck" list (snake_case hydration, lazy proxies, `#[SoftDeleteable] remove()`, `#[PreUpdate]` on implicit dirty flush) and the Analytics "Pending library recheck / fixes" list against the release; drop workarounds that are no longer needed.
 
 ---
 
