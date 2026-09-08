@@ -1,6 +1,6 @@
 # Articulate ORM Demo
 
-This repository is the runnable demo and documentation companion for [Articulate](https://github.com/denisyu-1/articulate), a lightweight PHP ORM built around PHP 8 attributes, an identity map, Unit of Work change tracking, relation mapping, migrations, and query-building utilities.
+This repository is the runnable demo and documentation companion for [Articulate](https://github.com/articulate-orm/core), a lightweight PHP ORM built around PHP 8 attributes, an identity map, Unit of Work change tracking, relation mapping, migrations, and query-building utilities.
 
 Use this project when you want to see Articulate features in context. Each guide explains the concept, points to runnable console commands, and links to the previous and next topic so the repository can be read as a tutorial.
 
