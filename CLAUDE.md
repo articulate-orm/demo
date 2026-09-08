@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Demo and documentation project for the [Articulate](https://github.com/denisyu-1/articulate) custom ORM library (`denis/articulate`). Symfony 8 console app — no HTTP routes, only CLI commands.
+Demo and documentation project for the [Articulate](https://github.com/articulate-orm/core) custom ORM library (`articulate-orm/core`). Symfony 8 console app — no HTTP routes, only CLI commands.
 
 ## Commands
 

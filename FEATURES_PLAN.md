@@ -249,13 +249,13 @@ Each feature lives in `src/Features/<Name>/` and owns its entities, commands, an
 
 ## Feature: OptimisticLocking
 
-**Status:** Planned. Requires the optimistic-locking library release (merged to `articulate` `main`, not in `1.1.0`; build once the tagged release — expected `1.2.0` — is on Packagist and the demo's `composer.json` constraint is bumped).
+**Status:** Built against `articulate-orm/core` `1.2.1` + `articulate-orm/symfony` `1.2.0` (the demo's `composer.json` was bumped from the abandoned `denisyu-1/*` packages to `articulate-orm/*` `^1.2.0`). Runnable via `app:billing:optimistic-lock`.
 
 **Why a dedicated feature:** Optimistic locking is the clearest expression of Articulate's differentiator. A naive version-per-entity-class lock *breaks* under context-bounded entities: if only one sibling class bumps/checks the version column, another sibling silently overwrites changes undetected. Articulate makes it explicit and per-class, so this feature exists to show the safe cross-class contract — not just a single-class version counter.
 
 **Domain:** Billing — an invoice row written through two bounded-context classes: a full checking class and a narrow bump-only edit path.
 
-**Schema:** new migration `Migration20260616000600OptimisticLocking` adds an `invoices` table with an `int version NOT NULL DEFAULT 0` column (library auto-generates `DEFAULT 0` for a `#[Version]` column via `articulate:diff`; the checked-in migration mirrors that).
+**Schema:** migration `Migration20260908000600OptimisticLocking` (checked in under both `migrations/mysql/2026/09/` and `migrations/pgsql/2026/09/`) adds an `invoices` table with an `int version NOT NULL DEFAULT 0` column (library auto-generates `DEFAULT 0` for a `#[Version]` column via `articulate:diff`; the checked-in migration mirrors that).
 
 **Entities:**
 - `Invoice` — `#[Entity(tableName: 'invoices')]`; full write model. Carries `#[Property] #[Version] public int $version = 0;` — the canonical version column, hydrated as a normal int, bumped (`version = version + 1`) **and** checked (`WHERE version = ?`) on every UPDATE through this class.

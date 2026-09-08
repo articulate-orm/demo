@@ -115,6 +115,12 @@ class FeatureCommandsTest extends TestCase
         $this->assertSame(0, $exitCode, $content ?: 'Command produced no output');
     }
 
+    public function testBillingOptimisticLockCommandRunsSuccessfully(): void
+    {
+        [$exitCode, $content] = $this->runCommand('app:billing:optimistic-lock');
+        $this->assertSame(0, $exitCode, $content ?: 'Command produced no output');
+    }
+
     public function testBulkImportRunCommandRunsSuccessfully(): void
     {
         [$exitCode, $content] = $this->runCommand('app:import:run', [

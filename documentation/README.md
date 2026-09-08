@@ -13,8 +13,9 @@ These guides are ordered as a tutorial path. Each page has a short description, 
 | 7 | [Lifecycle Callbacks](lifecycle-callbacks/README.md) | Hook into persistence, update, removal, and hydration events. |
 | 8 | [Custom Types](custom-types/README.md) | Convert custom PHP values to and from database values. |
 | 9 | [Transactions and Locking](transactions-locking/README.md) | Use transactions and row-level locks for consistent writes. |
-| 10 | [Performance](performance/README.md) | Work with identity map, result cache, second-level cache, query logging, partial hydration, and batch iteration. |
-| 11 | [Known Limitations](known-limitations/README.md) | Current library gaps and demo workarounds, grouped by area. |
+| 10 | [Optimistic Locking](optimistic-locking/README.md) | Detect lost updates with version columns across bounded-context classes. |
+| 11 | [Performance](performance/README.md) | Work with identity map, result cache, second-level cache, query logging, partial hydration, and batch iteration. |
+| 12 | [Known Limitations](known-limitations/README.md) | Current library gaps and demo workarounds, grouped by area. |
 
 ## Related
 
