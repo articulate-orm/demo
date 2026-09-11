@@ -10,6 +10,7 @@ articulate:
           '%kernel.project_dir%/src/Features/BulkImport',
           '%kernel.project_dir%/src/Features/Catalog',
           '%kernel.project_dir%/src/Features/CustomerAccounts',
+          '%kernel.project_dir%/src/Features/OptimisticLocking',
           '%kernel.project_dir%/src/Features/Orders',
           '%kernel.project_dir%/src/Features/Tagging',
         ]
