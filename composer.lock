@@ -4,39 +4,39 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f6bab0b8da0bba31a4f229e5cf8865cd",
+    "content-hash": "806c44b9e2e923586dbd5d587062ed64",
     "packages": [
         {
             "name": "articulate-orm/core",
-            "version": "dev-optimistic-locking-v2",
+            "version": "2.0.0",
             "source": {
-                "type": "git",
                 "url": "https://github.com/articulate-orm/core.git",
-                "reference": "6390adf6e7bd25b1427e6bb3c1ab320ab65d1853"
+                "type": "git",
+                "reference": "d0dd8df4037e47554d5d4a5c3aba0752b356ab3e"
             },
             "dist": {
+                "url": "https://api.github.com/repos/articulate-orm/core/zipball/d0dd8df4037e47554d5d4a5c3aba0752b356ab3e",
                 "type": "zip",
-                "url": "https://api.github.com/repos/articulate-orm/core/zipball/6390adf6e7bd25b1427e6bb3c1ab320ab65d1853",
-                "reference": "6390adf6e7bd25b1427e6bb3c1ab320ab65d1853",
-                "shasum": ""
+                "shasum": "",
+                "reference": "d0dd8df4037e47554d5d4a5c3aba0752b356ab3e"
             },
             "require": {
-                "ext-pdo": "*",
                 "php": ">=8.4",
+                "symfony/console": "^8.0",
+                "symfony/uid": "^8.0",
                 "psr/cache": "^3.0",
                 "psr/log": "^3.0",
-                "symfony/console": "^8.0",
-                "symfony/uid": "^8.0"
+                "ext-pdo": "*"
             },
             "require-dev": {
-                "deptrac/deptrac": "^4.6",
-                "friendsofphp/php-cs-fixer": "^3.62",
-                "infection/infection": "dev-master",
-                "phpmd/phpmd": "^2.15",
-                "phpstan/phpstan": "^2.0",
                 "phpunit/phpunit": "^13.0",
+                "vlucas/phpdotenv": "^5.6",
+                "friendsofphp/php-cs-fixer": "^3.62",
                 "squizlabs/php_codesniffer": "^4.0",
-                "vlucas/phpdotenv": "^5.6"
+                "infection/infection": "dev-master",
+                "deptrac/deptrac": "^4.6",
+                "phpmd/phpmd": "^2.15",
+                "phpstan/phpstan": "^2.0"
             },
             "type": "library",
             "autoload": {
@@ -57,36 +57,37 @@
             "description": "Context-bounded PHP ORM for domain-driven applications",
             "homepage": "https://github.com/articulate-orm/core",
             "keywords": [
-                "bounded-context",
                 "database",
+                "orm",
+                "php",
                 "ddd",
                 "entity-manager",
-                "orm",
-                "php"
+                "bounded-context"
             ],
             "support": {
                 "issues": "https://github.com/articulate-orm/core/issues",
-                "source": "https://github.com/articulate-orm/core/tree/optimistic-locking-v2"
+                "source": "https://github.com/articulate-orm/core/tree/2.0.0"
             },
-            "time": "2026-09-09T15:08:31+00:00"
+            "funding": [],
+            "time": "2026-09-14T12:58:03+00:00"
         },
         {
             "name": "articulate-orm/symfony",
-            "version": "1.2.0",
+            "version": "2.0.0",
             "source": {
-                "type": "git",
                 "url": "https://github.com/articulate-orm/symfony.git",
-                "reference": "801946e1314a3548d13af670e6d494e47d4816b4"
+                "type": "git",
+                "reference": "c00cab8b81c6f84e8a7788bf5c7f13e1581bf33d"
             },
             "dist": {
+                "url": "https://api.github.com/repos/articulate-orm/symfony/zipball/c00cab8b81c6f84e8a7788bf5c7f13e1581bf33d",
                 "type": "zip",
-                "url": "https://api.github.com/repos/articulate-orm/symfony/zipball/801946e1314a3548d13af670e6d494e47d4816b4",
-                "reference": "801946e1314a3548d13af670e6d494e47d4816b4",
-                "shasum": ""
+                "shasum": "",
+                "reference": "c00cab8b81c6f84e8a7788bf5c7f13e1581bf33d"
             },
             "require": {
-                "articulate-orm/core": "^1.2.0",
                 "php": ">=8.4",
+                "articulate-orm/core": "^2.0.0",
                 "psr/container": "^2.0",
                 "symfony/config": "^8.0",
                 "symfony/console": "^8.0",
@@ -114,12 +115,16 @@
             "license": [
                 "Apache-2.0"
             ],
+            "authors": [],
             "description": "Symfony bundle integration for the Articulate context-bounded ORM",
+            "homepage": "",
+            "keywords": [],
             "support": {
                 "issues": "https://github.com/articulate-orm/symfony/issues",
-                "source": "https://github.com/articulate-orm/symfony/tree/1.2.0"
+                "source": "https://github.com/articulate-orm/symfony/tree/2.0.0"
             },
-            "time": "2026-09-08T10:16:07+00:00"
+            "funding": [],
+            "time": "2026-09-14T13:41:37+00:00"
         },
         {
             "name": "psr/cache",
@@ -2162,7 +2167,7 @@
             ],
             "authors": [
                 {
-                    "name": "Grégoire Pineau",
+                    "name": "Gr\u00e9goire Pineau",
                     "email": "lyrixx@lyrixx.info"
                 },
                 {
@@ -2578,7 +2583,7 @@
             ],
             "authors": [
                 {
-                    "name": "Grégoire Pineau",
+                    "name": "Gr\u00e9goire Pineau",
                     "email": "lyrixx@lyrixx.info"
                 },
                 {
@@ -3078,7 +3083,7 @@
                     "name": "Tim Glabisch"
                 },
                 {
-                    "name": "Simon Mönch"
+                    "name": "Simon M\u00f6nch"
                 },
                 {
                     "name": "Denis Brumann"
@@ -3664,7 +3669,7 @@
             ],
             "authors": [
                 {
-                    "name": "Ondřej Mirtes"
+                    "name": "Ond\u0159ej Mirtes"
                 },
                 {
                     "name": "Markus Staab"
@@ -5382,18 +5387,9 @@
             "time": "2025-12-08T11:19:18+00:00"
         }
     ],
-    "aliases": [
-        {
-            "package": "articulate-orm/core",
-            "version": "dev-optimistic-locking-v2",
-            "alias": "1.2.1",
-            "alias_normalized": "1.2.1.0"
-        }
-    ],
+    "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "articulate-orm/core": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
