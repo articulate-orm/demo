@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0e6be792a4b08e7efd1e46e3e02aadcb",
+    "content-hash": "f6bab0b8da0bba31a4f229e5cf8865cd",
     "packages": [
         {
             "name": "articulate-orm/core",
-            "version": "1.2.1",
+            "version": "dev-optimistic-locking-v2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/articulate-orm/core.git",
-                "reference": "a9a0ebdbf8a4224528d672333ed3fc6512775102"
+                "reference": "6390adf6e7bd25b1427e6bb3c1ab320ab65d1853"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/articulate-orm/core/zipball/a9a0ebdbf8a4224528d672333ed3fc6512775102",
-                "reference": "a9a0ebdbf8a4224528d672333ed3fc6512775102",
+                "url": "https://api.github.com/repos/articulate-orm/core/zipball/6390adf6e7bd25b1427e6bb3c1ab320ab65d1853",
+                "reference": "6390adf6e7bd25b1427e6bb3c1ab320ab65d1853",
                 "shasum": ""
             },
             "require": {
@@ -66,9 +66,9 @@
             ],
             "support": {
                 "issues": "https://github.com/articulate-orm/core/issues",
-                "source": "https://github.com/articulate-orm/core/tree/1.2.1"
+                "source": "https://github.com/articulate-orm/core/tree/optimistic-locking-v2"
             },
-            "time": "2026-09-08T09:45:00+00:00"
+            "time": "2026-09-09T15:08:31+00:00"
         },
         {
             "name": "articulate-orm/symfony",
@@ -5382,9 +5382,18 @@
             "time": "2025-12-08T11:19:18+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "articulate-orm/core",
+            "version": "dev-optimistic-locking-v2",
+            "alias": "1.2.1",
+            "alias_normalized": "1.2.1.0"
+        }
+    ],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "articulate-orm/core": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

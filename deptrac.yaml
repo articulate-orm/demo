@@ -23,6 +23,11 @@ parameters:
         - type: directory
           value: src/Features/CustomerAccounts
 
+    - name: OptimisticLocking
+      collectors:
+        - type: directory
+          value: src/Features/OptimisticLocking
+
     - name: Orders
       collectors:
         - type: directory
@@ -44,6 +49,8 @@ parameters:
     Catalog: ~
 
     CustomerAccounts: ~
+
+    OptimisticLocking: ~
 
     Orders:
       - Catalog
