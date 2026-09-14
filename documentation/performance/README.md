@@ -72,6 +72,6 @@ Source: [AnalyticsBatchCommand](../../src/Features/Analytics/Command/AnalyticsBa
 
 ## Navigation
 
-Previous: [Transactions and Locking](../transactions-locking/README.md)  
+Previous: [Optimistic Locking](../optimistic-locking/README.md)  
 Base: [Documentation Index](../README.md)  
 Next: [Known Limitations](../known-limitations/README.md)
