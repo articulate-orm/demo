@@ -1,6 +1,6 @@
 {
-    "denisyu-1/articulate-symfony": {
-        "version": "1.1.0"
+    "articulate-orm/symfony": {
+        "version": "1.2.0"
     },
     "deptrac/deptrac": {
         "version": "4.6.1"
