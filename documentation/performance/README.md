@@ -37,7 +37,7 @@ Second-level cache stores raw entity row data for `find()` lookups by entity cla
 
 When a flush updates, deletes, or soft-deletes an entity, Articulate evicts cache entries for every mapped entity class that shares the same table and primary key. This keeps same-row projections consistent after writes.
 
-Second-level cache does not serve list/query paths such as `findBy()`, query-builder `getResult()`, or chunked batch reads.
+Second-level cache serves `find()` by primary key. List queries are cached only when you opt in, see [Collection Cache](#collection-cache).
 
 ## Query Logging
 
@@ -66,9 +66,29 @@ Source: [AnalyticsBatchCommand](../../src/Features/Analytics/Command/AnalyticsBa
 
 ## Common Pitfalls
 
-- Second-level cache helps `find()` by primary key, not list queries.
+- Second-level cache helps `find()` by primary key; list queries need `cacheable()`.
 - Result cache can return stale aggregate rows until its TTL expires.
 - Current scalar and partial hydration caveats are tracked in [Known Limitations](../known-limitations/README.md).
+
+## Collection Cache
+
+```php
+$products = $em->createQueryBuilder(ProductListing::class)
+    ->where('category_id', 12)
+    ->orderBy('id', 'ASC')
+    ->cacheable(300)   // TTL in seconds; omit to use secondLevelCacheTtl
+    ->getResult();
+```
+
+`cacheable()` caches the ordered list of primary keys a query matched, not the rows. Each id is resolved through the identity map or the per-entity second-level cache, so row data is stored once. It needs a `secondLevelCache` pool; without one it is a silent no-op, as it is for `lock()` queries, aggregates, custom hydrators and composite primary keys.
+
+Invalidation:
+
+- **Update, delete, soft delete:** exact. A reverse index maps `table + id` to the cached lists containing that row, so only those lists are evicted. Because the index is keyed by table, a write through a sibling class on the same table (for example `Product` and `ProductListing`) evicts lists cached under the other class.
+- **Insert:** every insert into a table bumps a per-table generation counter that is part of the list keys, so all cached lists of that table miss once and are rebuilt.
+- **Not detected:** an update that makes a row newly match a cached query's `WHERE`, changes to joined tables, and bulk `QueryBuilder::update()/delete()` with a table string. These stay stale until the TTL.
+
+Run `app:catalog:cached-queries` to see each case with SQL query counts. Source: [`src/Features/CollectionCache/`](../../src/Features/CollectionCache).
 
 ## Navigation
 

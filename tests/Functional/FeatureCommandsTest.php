@@ -49,6 +49,12 @@ class FeatureCommandsTest extends TestCase
         $this->assertSame(0, $exitCode, $content ?: 'Command produced no output');
     }
 
+    public function testCatalogCachedQueriesCommandRunsSuccessfully(): void
+    {
+        [$exitCode, $content] = $this->runCommand('app:catalog:cached-queries');
+        $this->assertSame(0, $exitCode, $content ?: 'Command produced no output');
+    }
+
     public function testCustomersLifecycleCommandRunsSuccessfully(): void
     {
         [$exitCode, $content] = $this->runCommand('app:customers:lifecycle');
