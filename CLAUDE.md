@@ -32,6 +32,7 @@ docker compose exec php bin/console app:catalog:query
 docker compose exec php bin/console app:customers:browse
 docker compose exec php bin/console app:orders:place
 docker compose exec php bin/console app:tagging:demo
+docker compose exec php bin/console app:catalog:cached-queries
 docker compose exec php bin/console app:analytics:report
 docker compose exec php bin/console app:import:run --count=40 --batch-size=10
 ```
