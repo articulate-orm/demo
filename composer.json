@@ -10,7 +10,7 @@
         "ext-ctype": "*",
         "ext-iconv": "*",
         "ext-pdo": "*",
-        "articulate-orm/core": "dev-main as 2.0.99",
+        "articulate-orm/core": "dev-feature/collection-cache-table-generation as 2.0.99",
         "articulate-orm/symfony": "^2.0.0",
         "symfony/console": "8.*",
         "symfony/dotenv": "8.*",

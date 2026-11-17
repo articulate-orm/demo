@@ -3,6 +3,8 @@
 namespace App\Features\CollectionCache\Command;
 
 use App\Features\Analytics\Diagnostics\CountingQueryLogger;
+use App\Features\Catalog\Entity\Category;
+use App\Features\Catalog\Entity\InventorySlot;
 use App\Features\Catalog\Entity\Product;
 use App\Features\CollectionCache\Entity\ProductListing;
 use Articulate\Connection;
@@ -32,18 +34,23 @@ final class CatalogCachedQueriesCommand extends Command
         $writer = $this->createEntityManager($pool);
         $reader = $this->createEntityManager($pool, $this->readerLogger = new CountingQueryLogger());
 
-        $ids = $this->seed($writer, $suffix, $categoryId);
+        [$ids, $taxonomyId] = $this->seed($writer, $suffix, $categoryId);
         $writer->clear();
 
         try {
             $this->demonstrateWarmUp($io, $reader, $categoryId);
             $this->demonstrateSiblingInvalidation($io, $reader, $writer, $categoryId, $ids);
-            $this->demonstratePreciseInvalidation($io, $reader, $writer, $categoryId);
+            $this->demonstrateTableGeneration($io, $reader, $writer, $categoryId, $ids);
+            $this->demonstrateJoinInvalidation($io, $reader, $writer, $categoryId, $ids);
+            $this->demonstrateSubqueryInvalidation($io, $reader, $writer, $categoryId, $ids);
+            $this->demonstrateDependsOn($io, $reader, $writer, $categoryId, $ids);
+            $this->demonstrateMappingTable($io, $reader, $writer, $taxonomyId, $ids);
+            $this->demonstrateOutOfBandWrites($io, $reader, $writer, $categoryId, $ids);
             $this->demonstrateDeletion($io, $reader, $writer, $categoryId, $ids);
             $this->demonstrateInserts($io, $reader, $writer, $categoryId, $suffix);
             $this->demonstrateNoPool($io, $categoryId);
         } finally {
-            $this->cleanUp($writer, $categoryId);
+            $this->cleanUp($writer, $categoryId, $taxonomyId, $ids);
         }
 
         $io->success('Collection cache demo completed');
@@ -101,34 +108,194 @@ final class CatalogCachedQueriesCommand extends Command
         $this->expect($beforeQueries === 0 && $afterQueries > 0 && $names[0] === 'Renamed through Product', 'sibling write must evict the list and serve fresh data');
     }
 
-    private function demonstratePreciseInvalidation(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId): void
+    /**
+     * @param list<int> $ids
+     */
+    private function demonstrateTableGeneration(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array &$ids): void
     {
-        $io->section('Scenario 3 — exact invalidation: unrelated rows do not evict');
+        $io->section('Scenario 3 — table generation: an update moving a row INTO the predicate invalidates');
 
-        $unrelatedSku = 'UNRELATED-' . bin2hex(random_bytes(3));
-        $unrelated = $this->newProduct($unrelatedSku, $categoryId + 1);
-        $writer->persist($unrelated);
+        $outsider = $this->newProduct('OUTSIDER-' . bin2hex(random_bytes(3)), $categoryId + 1);
+        $writer->persist($outsider);
         $writer->flush();
         $writer->clear();
+        $ids[] = $outsider->id;
+        $this->setStock($writer, $outsider->id, 5, create: true);
+
+        [$before, $after, $afterQueries] = $this->readAroundWrite(
+            $reader,
+            fn () => $this->listing($reader, $categoryId),
+            function () use ($writer, $outsider, $categoryId): void {
+                $row = $writer->find(Product::class, $outsider->id);
+                $row->categoryId = $categoryId;
+                $writer->flush();
+                $writer->clear();
+            },
+        );
+
+        $io->definitionList(
+            ['rows in cached list' => (string) count($before)],
+            ['moved a product from another category into this one' => 'flush ok'],
+            ['list read afterwards' => count($after) . " row(s), {$afterQueries} SQL query(s)"],
+        );
+        $io->text('Every flush bumps the generation of each table it writes. A cached id-list is keyed by its tables\' generations, so any write to products makes it miss, even for a row that was never in the list. Coarse, but rows entering the predicate are no longer missed.');
+
+        $this->expect(count($after) === count($before) + 1 && $afterQueries > 0, 'update moving a row into the predicate must invalidate the list');
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function demonstrateJoinInvalidation(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
+    {
+        $io->section('Scenario 4 — joined tables are dependencies: a stock write evicts the joined list');
 
         $this->listing($reader, $categoryId)->getResult();
-        $reader->clear();
-
-        $unrelated = $writer->find(Product::class, $unrelated->id);
-        $unrelated->name = 'Changed unrelated row';
-        $writer->flush();
-        $writer->clear();
-
-        [, $unrelatedQueries] = $this->measure(fn () => $this->listing($reader, $categoryId)->getResult());
-        $io->definitionList(
-            ['updated a row of the same table that is NOT in the cached list' => 'flush ok'],
-            ['list read afterwards' => "{$unrelatedQueries} SQL query(s) (still cached)"],
+        [$before, $after, $afterQueries] = $this->readAroundWrite(
+            $reader,
+            fn () => $this->inStockListing($reader, $categoryId),
+            fn () => $this->setStock($writer, $ids[0], 0),
         );
-        $io->text('Invalidation uses a reverse index (table + id -> cached lists), not a per-table "last write" timestamp.');
+        [, $plainQueries] = $this->measure(fn () => $this->listing($reader, $categoryId)->getResult());
 
-        $writer->getConnection()->executeQuery('DELETE FROM products WHERE sku = ?', [$unrelatedSku]);
+        $io->definitionList(
+            ['in-stock list (JOIN product_stock) before' => count($before) . ' row(s)'],
+            ['InventorySlot::$stock set to 0 for one product' => 'flush ok'],
+            ['in-stock list afterwards' => count($after) . " row(s), {$afterQueries} SQL query(s)"],
+            ['plain list (no join) afterwards' => "{$plainQueries} SQL query(s) (still cached)"],
+        );
+        $io->text('join()/leftJoin()/rightJoin()/crossJoin() tables are folded into the key next to the root table. A query that does not read product_stock keeps its hit.');
 
-        $this->expect($unrelatedQueries === 0, 'unrelated update must not evict the cached list');
+        $this->expect(count($after) === count($before) - 1 && $afterQueries > 0 && $plainQueries === 0, 'joined-table write must evict only lists that join it');
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function demonstrateSubqueryInvalidation(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
+    {
+        $io->section('Scenario 5 — subquery tables are dependencies too');
+
+        $query = fn () => $reader->createQueryBuilder(ProductListing::class)
+            ->where('category_id', $categoryId)
+            ->whereIn('id', $reader->createQueryBuilder()->select('product_id')->from('product_stock')->where('stock', '>', 0))
+            ->orderBy('id', 'ASC')
+            ->cacheable(self::TTL);
+
+        [$before, $after, $afterQueries] = $this->readAroundWrite($reader, $query, fn () => $this->setStock($writer, $ids[0], 5));
+
+        $io->definitionList(
+            ['whereIn(id, <product_stock subquery>) before' => count($before) . ' row(s)'],
+            ['stock restocked for one product' => 'flush ok'],
+            ['list afterwards' => count($after) . " row(s), {$afterQueries} SQL query(s)"],
+        );
+        $io->text('QueryBuilder subqueries passed to whereIn/whereNotIn/whereExists/orWhereExists contribute their FROM, joins and nested subqueries, recursively.');
+
+        $this->expect(count($after) === count($before) + 1 && $afterQueries > 0, 'subquery-table write must evict the list');
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function demonstrateDependsOn(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
+    {
+        $io->section('Scenario 6 — raw SQL is invisible: declare it with cacheable(dependsOn:)');
+
+        $raw = fn (array $dependsOn) => fn () => $reader->createQueryBuilder(ProductListing::class)
+            ->where('category_id', $categoryId)
+            ->whereRaw('EXISTS (SELECT 1 FROM product_stock ps WHERE ps.product_id = products.id AND ps.stock > 0)')
+            ->orderBy('id', 'ASC')
+            ->cacheable(self::TTL, dependsOn: $dependsOn);
+
+        $raw([])()->getResult();
+        [$before, $declaredAfter, $declaredQueries] = $this->readAroundWrite(
+            $reader,
+            $raw(['product_stock']),
+            fn () => $this->setStock($writer, $ids[0], 0),
+        );
+        [$undeclaredAfter, $undeclaredQueries] = $this->measure(fn () => $raw([])()->getResult());
+
+        $io->definitionList(
+            ['whereRaw(EXISTS ... product_stock) before' => count($before) . ' row(s)'],
+            ['stock set to 0 for one product' => 'flush ok'],
+            ['without dependsOn' => count($undeclaredAfter) . " row(s), {$undeclaredQueries} SQL query(s) (stale until TTL)"],
+            ["with dependsOn: ['product_stock']" => count($declaredAfter) . " row(s), {$declaredQueries} SQL query(s)"],
+        );
+
+        $this->expect(
+            count($undeclaredAfter) === count($before) && $undeclaredQueries === 0
+                && count($declaredAfter) === count($before) - 1 && $declaredQueries > 0,
+            'only the dependsOn query must notice a raw-SQL table write',
+        );
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function demonstrateMappingTable(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $taxonomyId, array $ids): void
+    {
+        $io->section('Scenario 7 — mapping (pivot) table writes from collection sync invalidate');
+
+        $query = fn () => $reader->createQueryBuilder(ProductListing::class)
+            ->join('categories_products cp', 'cp.products_id = products.id')
+            ->where('cp.categories_id', $taxonomyId)
+            ->orderBy('products.id', 'ASC')
+            ->cacheable(self::TTL);
+
+        [$before, $after, $afterQueries] = $this->readAroundWrite($reader, $query, function () use ($writer, $taxonomyId, $ids): void {
+            $writer->find(Product::class, $ids[0])->categories->add($writer->find(Category::class, $taxonomyId));
+            $writer->flush();
+            $writer->clear();
+        });
+
+        $io->definitionList(
+            ['products in category (JOIN categories_products) before' => count($before) . ' row(s)'],
+            ['$product->categories->add($category)' => 'flush ok'],
+            ['list afterwards' => count($after) . " row(s), {$afterQueries} SQL query(s)"],
+        );
+        $io->text('The unit of work bumps the mapping table\'s generation when it syncs a many-to-many collection.');
+
+        $this->expect(count($after) === count($before) + 1 && $afterQueries > 0, 'pivot write must evict the list joining it');
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function demonstrateOutOfBandWrites(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
+    {
+        $io->section('Scenario 8 — writes outside the unit of work: QueryBuilder DML, raw SQL, named lists');
+
+        $stockQuery = fn () => $this->inStockListing($reader, $categoryId);
+
+        [$before, $afterDml, $dmlQueries] = $this->readAroundWrite($reader, $stockQuery, function () use ($writer, $ids): void {
+            $writer->createQueryBuilder()->update('product_stock')->set('stock', 5)->where('product_id', $ids[0])->execute();
+        });
+
+        [, $afterRaw, $rawQueries] = $this->readAroundWrite($reader, $stockQuery, function () use ($writer, $ids): void {
+            $writer->getConnection()->executeQuery('UPDATE product_stock SET stock = 0 WHERE product_id = ?', [$ids[0]]);
+        });
+        $writer->invalidateTables('product_stock');
+        $reader->clear();
+        [$afterManual, $manualQueries] = $this->measure(fn () => $stockQuery()->getResult());
+
+        $named = fn () => $this->listing($reader, $categoryId)->cacheable(self::TTL, name: 'category-listing');
+        [, , $namedQueries] = $this->readAroundWrite($reader, $named, fn () => $writer->invalidateCacheNames('category-listing'));
+
+        $io->definitionList(
+            ['in-stock list before' => count($before) . ' row(s)'],
+            ["QueryBuilder update('product_stock')->set('stock', 5)" => count($afterDml) . " row(s), {$dmlQueries} SQL query(s) (bumped by execute())"],
+            ['raw UPDATE product_stock SET stock = 0' => count($afterRaw) . " row(s), {$rawQueries} SQL query(s) (stale: the ORM never saw it)"],
+            ["\$em->invalidateTables('product_stock')" => count($afterManual) . " row(s), {$manualQueries} SQL query(s)"],
+            ["cacheable(name: 'category-listing') + invalidateCacheNames()" => "{$namedQueries} SQL query(s), no table written"],
+        );
+
+        $this->expect(
+            count($afterDml) === count($before) + 1 && $dmlQueries > 0
+                && count($afterRaw) === count($afterDml) && $rawQueries === 0
+                && count($afterManual) === count($before) && $manualQueries > 0
+                && $namedQueries > 0,
+            'QueryBuilder DML and manual invalidation must evict, raw SQL alone must not',
+        );
     }
 
     /**
@@ -136,7 +303,7 @@ final class CatalogCachedQueriesCommand extends Command
      */
     private function demonstrateDeletion(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
     {
-        $io->section('Scenario 4 — deleting a cached row');
+        $io->section('Scenario 9 — deleting a cached row');
 
         $this->listing($reader, $categoryId)->getResult();
         $reader->clear();
@@ -160,7 +327,7 @@ final class CatalogCachedQueriesCommand extends Command
 
     private function demonstrateInserts(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, string $suffix): void
     {
-        $io->section('Scenario 5 — inserts: a per-table generation counter, coarser than updates');
+        $io->section('Scenario 10 — inserts bump the same table generation');
 
         $this->listing($reader, $categoryId)->getResult();
         $reader->clear();
@@ -179,14 +346,14 @@ final class CatalogCachedQueriesCommand extends Command
             ['cacheable() read after insert' => count($after) . " row(s), {$afterQueries} SQL query(s)"],
             ['same read again' => "{$secondQueries} SQL query(s) (re-cached)"],
         );
-        $io->text('A new row has no reverse-index entry yet, so every insert into the table bumps a per-table generation folded into the list keys. Lists of that table miss once and are rebuilt: correct, but coarse. Tables with heavy insert traffic gain little from cacheable().');
+        $io->text('Inserts bump the same table generation as updates and deletes. Lists of that table miss once and are rebuilt. Tables with heavy write traffic gain little from cacheable().');
 
         $this->expect(count($after) === $before + 1 && $afterQueries > 0 && $secondQueries === 0, 'insert must invalidate lists of its table, then re-cache');
     }
 
     private function demonstrateNoPool(SymfonyStyle $io, int $categoryId): void
     {
-        $io->section('Scenario 6 — without a secondLevelCache pool cacheable() is a silent no-op');
+        $io->section('Scenario 11 — without a secondLevelCache pool cacheable() is a silent no-op');
 
         $logger = new CountingQueryLogger();
         $em = $this->createEntityManager(null, $logger);
@@ -208,6 +375,48 @@ final class CatalogCachedQueriesCommand extends Command
             ->cacheable(self::TTL);
     }
 
+    private function inStockListing(EntityManager $em, int $categoryId): QueryBuilder
+    {
+        return $em->createQueryBuilder(ProductListing::class)
+            ->join('product_stock ps', 'ps.product_id = products.id')
+            ->where('products.category_id', $categoryId)
+            ->where('ps.stock', '>', 0)
+            ->orderBy('products.id', 'ASC')
+            ->cacheable(self::TTL);
+    }
+
+    /**
+     * Warm the cache, run $write through the other EntityManager, re-read.
+     *
+     * @param callable(): QueryBuilder $query
+     *
+     * @return array{0: array, 1: array, 2: int} rows before, rows after, SQL queries of the re-read
+     */
+    private function readAroundWrite(EntityManager $reader, callable $query, callable $write): array
+    {
+        $before = $query()->getResult();
+        $reader->clear();
+        $write();
+        $reader->clear();
+        [$after, $queries] = $this->measure(fn () => $query()->getResult());
+
+        return [$before, $after, $queries];
+    }
+
+    private function setStock(EntityManager $writer, int $productId, int $stock, bool $create = false): void
+    {
+        if ($create) {
+            $slot = new InventorySlot();
+            $slot->productId = $productId;
+            $writer->persist($slot);
+        } else {
+            $slot = $writer->find(InventorySlot::class, $productId);
+        }
+        $slot->stock = $stock;
+        $writer->flush();
+        $writer->clear();
+    }
+
     /**
      * @return array{0: mixed, 1: int}
      */
@@ -220,19 +429,33 @@ final class CatalogCachedQueriesCommand extends Command
     }
 
     /**
-     * @return list<int>
+     * Three products in $categoryId, each with stock 5; the second one is also
+     * linked through categories_products to a fresh category.
+     *
+     * @return array{0: list<int>, 1: int} product ids, taxonomy category id
      */
     private function seed(EntityManager $writer, string $suffix, int $categoryId): array
     {
+        $taxonomy = new Category();
+        $taxonomy->name = "Collection cache {$suffix}";
+        $taxonomy->slug = "collection-cache-{$suffix}";
+        $writer->persist($taxonomy);
+
         $products = [];
         foreach (['A', 'B', 'C'] as $letter) {
             $product = $this->newProduct("CC-{$suffix}-{$letter}", $categoryId);
             $writer->persist($product);
             $products[] = $product;
         }
+        $products[1]->categories = [$taxonomy];
         $writer->flush();
 
-        return array_map(static fn (Product $p): int => $p->id, $products);
+        $ids = array_map(static fn (Product $p): int => $p->id, $products);
+        foreach ($ids as $id) {
+            $this->setStock($writer, $id, 5, create: true);
+        }
+
+        return [$ids, $taxonomy->id];
     }
 
     private function newProduct(string $sku, int $categoryId): Product
@@ -248,9 +471,17 @@ final class CatalogCachedQueriesCommand extends Command
         return $product;
     }
 
-    private function cleanUp(EntityManager $writer, int $categoryId): void
+    /**
+     * @param list<int> $ids
+     */
+    private function cleanUp(EntityManager $writer, int $categoryId, int $taxonomyId, array $ids): void
     {
-        $writer->getConnection()->executeQuery('DELETE FROM products WHERE category_id IN (?, ?)', [$categoryId, $categoryId + 1]);
+        $connection = $writer->getConnection();
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+        $connection->executeQuery("DELETE FROM product_stock WHERE product_id IN ({$placeholders})", $ids);
+        $connection->executeQuery('DELETE FROM categories_products WHERE categories_id = ?', [$taxonomyId]);
+        $connection->executeQuery('DELETE FROM categories WHERE id = ?', [$taxonomyId]);
+        $connection->executeQuery('DELETE FROM products WHERE category_id IN (?, ?)', [$categoryId, $categoryId + 1]);
     }
 
     private function expect(bool $condition, string $message): void

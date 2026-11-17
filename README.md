@@ -42,7 +42,7 @@ The source code is organized by realistic e-commerce features. These modules are
 | Orders | [`src/Features/Orders/`](src/Features/Orders/README.md) | `app:orders:place`, `app:orders:query`, `app:orders:deadlock` | Transactions, pessimistic locks, UUID IDs, order/item relations, complex query builder usage. |
 | Tagging | [`src/Features/Tagging/`](src/Features/Tagging/README.md) | `app:tagging:demo` | Polymorphic many-to-many tagging, morph aliases, pivot-table queries. |
 | Analytics | [`src/Features/Analytics/`](src/Features/Analytics/README.md) | `app:analytics:report`, `app:analytics:batch` | Read-only projections, aggregates, result cache, query logging, batch reads. |
-| Collection Cache | [`src/Features/CollectionCache/`](documentation/performance/README.md#collection-cache) | `app:catalog:cached-queries` | `QueryBuilder::cacheable()`, id-list caching, reverse-index invalidation, sibling-class eviction, insert generation counter. |
+| Collection Cache | [`src/Features/CollectionCache/`](documentation/performance/README.md#collection-cache) | `app:catalog:cached-queries` | `QueryBuilder::cacheable()`, id-list caching, table-generation invalidation across joins, subqueries and pivot tables, `dependsOn`, manual and named invalidation. |
 | Bulk Import | [`src/Features/BulkImport/`](src/Features/BulkImport/README.md) | `app:import:run` | Write-side projections, scoped units of work, bounded-memory imports. |
 
 ## Quick Start

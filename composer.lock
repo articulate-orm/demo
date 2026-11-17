@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "806c44b9e2e923586dbd5d587062ed64",
+    "content-hash": "a63a3879f7389b3a9536ea47d8d78f5d",
     "packages": [
         {
             "name": "articulate-orm/core",
-            "version": "2.0.0",
+            "version": "dev-feature/collection-cache-table-generation",
             "source": {
                 "type": "git",
                 "url": "https://github.com/articulate-orm/core.git",
-                "reference": "d0dd8df4037e47554d5d4a5c3aba0752b356ab3e"
+                "reference": "1c69fb479f54d5030535d1f34a2b63edbddd7e92"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/articulate-orm/core/zipball/d0dd8df4037e47554d5d4a5c3aba0752b356ab3e",
-                "reference": "d0dd8df4037e47554d5d4a5c3aba0752b356ab3e",
+                "url": "https://api.github.com/repos/articulate-orm/core/zipball/1c69fb479f54d5030535d1f34a2b63edbddd7e92",
+                "reference": "1c69fb479f54d5030535d1f34a2b63edbddd7e92",
                 "shasum": ""
             },
             "require": {
@@ -32,10 +32,12 @@
                 "deptrac/deptrac": "^4.6",
                 "friendsofphp/php-cs-fixer": "^3.62",
                 "infection/infection": "dev-master",
-                "phpmd/phpmd": "^2.15",
+                "phpbench/phpbench": "^1.7",
+                "phpmd/phpmd": "^2.15 || ^3.0",
                 "phpstan/phpstan": "^2.0",
                 "phpunit/phpunit": "^13.0",
                 "squizlabs/php_codesniffer": "^4.0",
+                "symfony/cache": "^8.0",
                 "vlucas/phpdotenv": "^5.6"
             },
             "type": "library",
@@ -66,9 +68,10 @@
             ],
             "support": {
                 "issues": "https://github.com/articulate-orm/core/issues",
-                "source": "https://github.com/articulate-orm/core/tree/2.0.0"
+                "source": "https://github.com/articulate-orm/core/tree/feature/collection-cache-table-generation"
             },
-            "time": "2026-09-14T12:58:03+00:00"
+            "time": "2026-11-17T14:02:05+00:00",
+            "published-time": "2026-11-17T14:02:11+00:00"
         },
         {
             "name": "articulate-orm/symfony",
@@ -5382,9 +5385,18 @@
             "time": "2025-12-08T11:19:18+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "articulate-orm/core",
+            "version": "dev-feature/collection-cache-table-generation",
+            "alias": "2.0.99",
+            "alias_normalized": "2.0.99.0"
+        }
+    ],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "articulate-orm/core": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
@@ -5394,5 +5406,5 @@
         "ext-pdo": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }
