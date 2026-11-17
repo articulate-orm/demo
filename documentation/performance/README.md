@@ -95,7 +95,21 @@ Invalidation is per table. Every table has a **generation** counter; each `flush
 ->cacheable(300, dependsOn: ['product_stock'])
 ```
 
-- **Not detected:** bulk `QueryBuilder::update()/delete()` and raw SQL writes. These stay stale until the TTL.
+- **`QueryBuilder` DML:** `insert()`, `update()` and `delete()` bump the target table after `execute()`.
+- **Raw SQL and other processes:** not detected. Invalidate by hand, by table or by a name given to the list:
+
+```php
+$em->invalidateTables('product_stock');
+
+$listing = $em->createQueryBuilder(ProductListing::class)
+    ->where('category_id', 12)
+    ->cacheable(300, name: 'category-listing')
+    ->getResult();
+
+$em->invalidateCacheNames('category-listing');
+```
+
+Schema-qualified names (`shop.products`) in `from()`, `join()` or `dependsOn` share a counter with the bare table name, so a flush of `products` invalidates them.
 
 The trade-off is hit rate: a list joined to a frequently written table misses after each of those writes. Generations live in the shared pool and are bumped after `flush()` commits, so invalidation is shared across `EntityManager` instances.
 

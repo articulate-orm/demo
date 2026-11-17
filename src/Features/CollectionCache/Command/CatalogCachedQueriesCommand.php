@@ -45,6 +45,7 @@ final class CatalogCachedQueriesCommand extends Command
             $this->demonstrateSubqueryInvalidation($io, $reader, $writer, $categoryId, $ids);
             $this->demonstrateDependsOn($io, $reader, $writer, $categoryId, $ids);
             $this->demonstrateMappingTable($io, $reader, $writer, $taxonomyId, $ids);
+            $this->demonstrateOutOfBandWrites($io, $reader, $writer, $categoryId, $ids);
             $this->demonstrateDeletion($io, $reader, $writer, $categoryId, $ids);
             $this->demonstrateInserts($io, $reader, $writer, $categoryId, $suffix);
             $this->demonstrateNoPool($io, $categoryId);
@@ -260,9 +261,49 @@ final class CatalogCachedQueriesCommand extends Command
     /**
      * @param list<int> $ids
      */
+    private function demonstrateOutOfBandWrites(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
+    {
+        $io->section('Scenario 8 — writes outside the unit of work: QueryBuilder DML, raw SQL, named lists');
+
+        $stockQuery = fn () => $this->inStockListing($reader, $categoryId);
+
+        [$before, $afterDml, $dmlQueries] = $this->readAroundWrite($reader, $stockQuery, function () use ($writer, $ids): void {
+            $writer->createQueryBuilder()->update('product_stock')->set('stock', 5)->where('product_id', $ids[0])->execute();
+        });
+
+        [, $afterRaw, $rawQueries] = $this->readAroundWrite($reader, $stockQuery, function () use ($writer, $ids): void {
+            $writer->getConnection()->executeQuery('UPDATE product_stock SET stock = 0 WHERE product_id = ?', [$ids[0]]);
+        });
+        $writer->invalidateTables('product_stock');
+        $reader->clear();
+        [$afterManual, $manualQueries] = $this->measure(fn () => $stockQuery()->getResult());
+
+        $named = fn () => $this->listing($reader, $categoryId)->cacheable(self::TTL, name: 'category-listing');
+        [, , $namedQueries] = $this->readAroundWrite($reader, $named, fn () => $writer->invalidateCacheNames('category-listing'));
+
+        $io->definitionList(
+            ['in-stock list before' => count($before) . ' row(s)'],
+            ["QueryBuilder update('product_stock')->set('stock', 5)" => count($afterDml) . " row(s), {$dmlQueries} SQL query(s) (bumped by execute())"],
+            ['raw UPDATE product_stock SET stock = 0' => count($afterRaw) . " row(s), {$rawQueries} SQL query(s) (stale: the ORM never saw it)"],
+            ["\$em->invalidateTables('product_stock')" => count($afterManual) . " row(s), {$manualQueries} SQL query(s)"],
+            ["cacheable(name: 'category-listing') + invalidateCacheNames()" => "{$namedQueries} SQL query(s), no table written"],
+        );
+
+        $this->expect(
+            count($afterDml) === count($before) + 1 && $dmlQueries > 0
+                && count($afterRaw) === count($afterDml) && $rawQueries === 0
+                && count($afterManual) === count($before) && $manualQueries > 0
+                && $namedQueries > 0,
+            'QueryBuilder DML and manual invalidation must evict, raw SQL alone must not',
+        );
+    }
+
+    /**
+     * @param list<int> $ids
+     */
     private function demonstrateDeletion(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, array $ids): void
     {
-        $io->section('Scenario 8 — deleting a cached row');
+        $io->section('Scenario 9 — deleting a cached row');
 
         $this->listing($reader, $categoryId)->getResult();
         $reader->clear();
@@ -286,7 +327,7 @@ final class CatalogCachedQueriesCommand extends Command
 
     private function demonstrateInserts(SymfonyStyle $io, EntityManager $reader, EntityManager $writer, int $categoryId, string $suffix): void
     {
-        $io->section('Scenario 9 — inserts bump the same table generation');
+        $io->section('Scenario 10 — inserts bump the same table generation');
 
         $this->listing($reader, $categoryId)->getResult();
         $reader->clear();
@@ -312,7 +353,7 @@ final class CatalogCachedQueriesCommand extends Command
 
     private function demonstrateNoPool(SymfonyStyle $io, int $categoryId): void
     {
-        $io->section('Scenario 10 — without a secondLevelCache pool cacheable() is a silent no-op');
+        $io->section('Scenario 11 — without a secondLevelCache pool cacheable() is a silent no-op');
 
         $logger = new CountingQueryLogger();
         $em = $this->createEntityManager(null, $logger);
