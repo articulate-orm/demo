@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/articulate-orm/core.git",
-                "reference": "423f961d683e0436437bed4f6fd78cee93c99d46"
+                "reference": "6b73329390ff631267695fa23d9bfc331d8378e4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/articulate-orm/core/zipball/423f961d683e0436437bed4f6fd78cee93c99d46",
-                "reference": "423f961d683e0436437bed4f6fd78cee93c99d46",
+                "url": "https://api.github.com/repos/articulate-orm/core/zipball/6b73329390ff631267695fa23d9bfc331d8378e4",
+                "reference": "6b73329390ff631267695fa23d9bfc331d8378e4",
                 "shasum": ""
             },
             "require": {
@@ -70,8 +70,8 @@
                 "issues": "https://github.com/articulate-orm/core/issues",
                 "source": "https://github.com/articulate-orm/core/tree/feature/collection-cache-table-generation"
             },
-            "time": "2026-11-17T09:53:22+00:00",
-            "published-time": "2026-11-17T10:15:21+00:00"
+            "time": "2026-11-17T13:20:08+00:00",
+            "published-time": "2026-11-17T13:20:14+00:00"
         },
         {
             "name": "articulate-orm/symfony",

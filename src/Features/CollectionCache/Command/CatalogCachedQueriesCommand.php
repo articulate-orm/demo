@@ -388,8 +388,8 @@ final class CatalogCachedQueriesCommand extends Command
     }
 
     /**
-     * Three products in $categoryId, each with stock 5, plus an empty category
-     * for the mapping-table scenario.
+     * Three products in $categoryId, each with stock 5; the second one is also
+     * linked through categories_products to a fresh category.
      *
      * @return array{0: list<int>, 1: int} product ids, taxonomy category id
      */
@@ -406,6 +406,7 @@ final class CatalogCachedQueriesCommand extends Command
             $writer->persist($product);
             $products[] = $product;
         }
+        $products[1]->categories = [$taxonomy];
         $writer->flush();
 
         $ids = array_map(static fn (Product $p): int => $p->id, $products);
