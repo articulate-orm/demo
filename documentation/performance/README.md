@@ -82,11 +82,22 @@ $products = $em->createQueryBuilder(ProductListing::class)
 
 `cacheable()` caches the ordered list of primary keys a query matched, not the rows. Each id is resolved through the identity map or the per-entity second-level cache, so row data is stored once. It needs a `secondLevelCache` pool; without one it is a silent no-op, as it is for `lock()` queries, aggregates, custom hydrators and composite primary keys.
 
-Invalidation:
+Invalidation is per table. Every table has a **generation** counter; each `flush()` bumps it once for every table it writes (insert, update, merged update, delete, soft delete, and mapping-table rows synced from many-to-many collections). A cached id-list is keyed by the generations of every table it reads, so any write to one of them makes it miss:
 
-- **Update, delete, soft delete:** exact. A reverse index maps `table + id` to the cached lists containing that row, so only those lists are evicted. Because the index is keyed by table, a write through a sibling class on the same table (for example `Product` and `ProductListing`) evicts lists cached under the other class.
-- **Insert:** every insert into a table bumps a per-table generation counter that is part of the list keys, so all cached lists of that table miss once and are rebuilt.
-- **Not detected:** an update that makes a row newly match a cached query's `WHERE`, changes to joined tables, and bulk `QueryBuilder::update()/delete()` with a table string. These stay stale until the TTL.
+- **Root table:** any write evicts, including an update that moves a row into or out of the `WHERE`. A write through a sibling class on the same table (for example `Product` and `ProductListing`) evicts lists cached under the other class.
+- **Joined tables:** `join()`, `leftJoin()`, `rightJoin()`, `crossJoin()` tables are dependencies. Writing `product_stock` evicts a list that joins it; a list that does not read `product_stock` keeps its hit.
+- **Subqueries:** a `QueryBuilder` subquery passed to `whereIn()`, `whereNotIn()`, `whereExists()` or `orWhereExists()` adds its tables, recursively.
+- **Mapping tables:** `$product->categories->add($category)` bumps `categories_products`, so a list joining it is evicted.
+- **Raw SQL:** tables reached only through `whereRaw()` or a raw join condition are not detected. Declare them:
+
+```php
+->whereRaw('EXISTS (SELECT 1 FROM product_stock ps WHERE ps.product_id = products.id AND ps.stock > 0)')
+->cacheable(300, dependsOn: ['product_stock'])
+```
+
+- **Not detected:** bulk `QueryBuilder::update()/delete()` and raw SQL writes. These stay stale until the TTL.
+
+The trade-off is hit rate: a list joined to a frequently written table misses after each of those writes. Generations live in the shared pool and are bumped after `flush()` commits, so invalidation is shared across `EntityManager` instances.
 
 Run `app:catalog:cached-queries` to see each case with SQL query counts. Source: [`src/Features/CollectionCache/`](../../src/Features/CollectionCache).
 
