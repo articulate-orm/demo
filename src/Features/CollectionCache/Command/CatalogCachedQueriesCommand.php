@@ -279,6 +279,9 @@ final class CatalogCachedQueriesCommand extends Command
         [$afterManual, $manualQueries] = $this->measure(fn () => $stockQuery()->getResult());
 
         $named = fn () => $this->listing($reader, $categoryId)->cacheable(self::TTL, name: 'category-listing');
+        $named()->getResult();
+        $reader->clear();
+        [, $namedHitQueries] = $this->measure(fn () => $named()->getResult());
         [, , $namedQueries] = $this->readAroundWrite($reader, $named, fn () => $writer->invalidateCacheNames('category-listing'));
 
         $io->definitionList(
@@ -286,14 +289,14 @@ final class CatalogCachedQueriesCommand extends Command
             ["QueryBuilder update('product_stock')->set('stock', 5)" => count($afterDml) . " row(s), {$dmlQueries} SQL query(s) (bumped by execute())"],
             ['raw UPDATE product_stock SET stock = 0' => count($afterRaw) . " row(s), {$rawQueries} SQL query(s) (stale: the ORM never saw it)"],
             ["\$em->invalidateTables('product_stock')" => count($afterManual) . " row(s), {$manualQueries} SQL query(s)"],
-            ["cacheable(name: 'category-listing') + invalidateCacheNames()" => "{$namedQueries} SQL query(s), no table written"],
+            ["cacheable(name: 'category-listing') + invalidateCacheNames()" => "{$namedHitQueries} SQL query(s) before, {$namedQueries} after, no table written"],
         );
 
         $this->expect(
             count($afterDml) === count($before) + 1 && $dmlQueries > 0
                 && count($afterRaw) === count($afterDml) && $rawQueries === 0
                 && count($afterManual) === count($before) && $manualQueries > 0
-                && $namedQueries > 0,
+                && $namedHitQueries === 0 && $namedQueries > 0,
             'QueryBuilder DML and manual invalidation must evict, raw SQL alone must not',
         );
     }
